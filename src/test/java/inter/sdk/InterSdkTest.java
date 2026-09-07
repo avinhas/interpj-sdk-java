@@ -33,6 +33,7 @@ public class InterSdkTest {
 
     private static final File LOGS = new File("logs");
     private File savedLogs;
+    private boolean logsIsolated;
 
     @Before
     public void setUp() throws IOException {
@@ -41,9 +42,11 @@ public class InterSdkTest {
 
         // Move any real logs/ aside so the tests never destroy retained SDK logs.
         if (LOGS.exists()) {
-            savedLogs = new File("logs-backup-" + System.nanoTime());
-            Files.move(LOGS.toPath(), savedLogs.toPath());
+            File backup = new File("logs-backup-" + System.nanoTime());
+            Files.move(LOGS.toPath(), backup.toPath());
+            savedLogs = backup;
         }
+        logsIsolated = true;
     }
 
     @After
@@ -52,6 +55,11 @@ public class InterSdkTest {
         TestStateReset.resetAll();
 
         // Remove anything the tests created, then restore the original logs/.
+        // Only touch logs/ if setUp actually finished isolating it.
+        if (!logsIsolated) {
+            return;
+        }
+        logsIsolated = false;
         deleteRecursively(LOGS.toPath());
         if (savedLogs != null) {
             Files.move(savedLogs.toPath(), LOGS.toPath());
