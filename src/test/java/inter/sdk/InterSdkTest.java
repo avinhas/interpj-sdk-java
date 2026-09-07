@@ -51,19 +51,25 @@ public class InterSdkTest {
 
     @After
     public void tearDown() throws IOException {
-        ssl.close();
-        TestStateReset.resetAll();
+        try {
+            TestStateReset.resetAll();
 
-        // Remove anything the tests created, then restore the original logs/.
-        // Only touch logs/ if setUp actually finished isolating it.
-        if (!logsIsolated) {
-            return;
-        }
-        logsIsolated = false;
-        deleteRecursively(LOGS.toPath());
-        if (savedLogs != null) {
-            Files.move(savedLogs.toPath(), LOGS.toPath());
-            savedLogs = null;
+            // Remove anything the tests created, then restore the original logs/.
+            // Only touch logs/ if setUp actually finished isolating it.
+            if (logsIsolated) {
+                logsIsolated = false;
+                try {
+                    deleteRecursively(LOGS.toPath());
+                } finally {
+                    // Restore the real logs/ even if the delete above failed.
+                    if (savedLogs != null) {
+                        Files.move(savedLogs.toPath(), LOGS.toPath());
+                        savedLogs = null;
+                    }
+                }
+            }
+        } finally {
+            ssl.close();
         }
     }
 
