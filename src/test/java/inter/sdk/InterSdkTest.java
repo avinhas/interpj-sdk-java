@@ -31,16 +31,32 @@ public class InterSdkTest {
 
     private MockedStatic<SslUtils> ssl;
 
+    private static final File LOGS = new File("logs");
+    private File savedLogs;
+
     @Before
-    public void setUp() {
+    public void setUp() throws IOException {
         ssl = mockStatic(SslUtils.class);
         ssl.when(() -> SslUtils.isCloseToExpire(anyString(), anyString())).thenReturn(null);
+
+        // Move any real logs/ aside so the tests never destroy retained SDK logs.
+        if (LOGS.exists()) {
+            savedLogs = new File("logs-backup-" + System.nanoTime());
+            Files.move(LOGS.toPath(), savedLogs.toPath());
+        }
     }
 
     @After
-    public void tearDown() {
+    public void tearDown() throws IOException {
         ssl.close();
         TestStateReset.resetAll();
+
+        // Remove anything the tests created, then restore the original logs/.
+        deleteRecursively(LOGS.toPath());
+        if (savedLogs != null) {
+            Files.move(savedLogs.toPath(), LOGS.toPath());
+            savedLogs = null;
+        }
     }
 
     private InterSdk newSdk() throws Exception {
