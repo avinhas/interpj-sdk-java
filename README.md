@@ -10,6 +10,17 @@
 * **License & Copyright:** The upstream repository does not currently feature an explicit open-source license. As such, all original code remains the exclusive copyright of the original author(s). This fork operates strictly within the public viewing and forking permissions granted by GitHub’s Terms of Service. No commercial usage or redistribution is intended.
 
 
+## Requirements
+
+- **Java 17** (JDK 17 or newer) — the project compiles with `--release 17`.
+- Apache Maven 3.6+.
+
+Build and run the tests with:
+
+```bash
+mvn clean verify
+```
+
 ## Execution Mode
 
 - To execute methods from the InterSdk, an external application that includes it as a project dependency is required.
