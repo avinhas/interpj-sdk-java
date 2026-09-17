@@ -1,7 +1,9 @@
 package inter.sdk.banking.payments;
 
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import inter.sdk.banking.models.Batch;
 import inter.sdk.banking.models.BatchItem;
 import inter.sdk.banking.models.BatchProcessing;
@@ -22,10 +24,6 @@ import inter.sdk.commons.models.Error;
 import inter.sdk.commons.utils.HttpUtils;
 import inter.sdk.commons.utils.UrlUtils;
 import lombok.extern.slf4j.Slf4j;
-import org.json.simple.JSONArray;
-import org.json.simple.JSONObject;
-import org.json.simple.parser.JSONParser;
-import org.json.simple.parser.ParseException;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -267,29 +265,34 @@ public class BankingPaymentClient {
         log.info("RetrievePaymentBatch {} {}", config.getClientId(), batchId);
         String url = UrlUtils.buildUrl(config, URL_BANKING_PAYMENT_BATCH) + "/" + batchId;
         String json = HttpUtils.callGet(config, url, BATCH_PAYMENT_READ_SCOPE, "Error to retrieve batch");
-        JSONParser parser = new JSONParser();
         try {
-            JSONObject jsonLote = (JSONObject) parser.parse(json);
-            JSONArray jsonArray = (JSONArray) jsonLote.get("pagamentos");
-            List<BatchItem> payments = new ArrayList<>();
             ObjectMapper objectMapper = new ObjectMapper();
-            if (jsonArray != null) {
-                for (JSONObject item : (Iterable<JSONObject>) jsonArray) {
-                    String paymentType = (String) item.get("tipoPagamento");
+            ObjectNode jsonLote = (ObjectNode) objectMapper.readTree(json);
+            JsonNode jsonArray = jsonLote.get("pagamentos");
+            List<BatchItem> payments = new ArrayList<>();
+            if (jsonArray != null && jsonArray.isArray()) {
+                for (JsonNode item : jsonArray) {
+                    JsonNode paymentTypeNode = item.get("tipoPagamento");
+                    if (paymentTypeNode == null || !paymentTypeNode.isTextual()) {
+                        throw new IOException("Invalid tipoPagamento in payment batch");
+                    }
+                    String paymentType = paymentTypeNode.asText();
                     if (paymentType.equals("BILLET")) {
-                        BilletBatch billetBatch = objectMapper.readValue(item.toJSONString(), BilletBatch.class);
+                        BilletBatch billetBatch = objectMapper.treeToValue(item, BilletBatch.class);
                         payments.add(billetBatch);
-                    } else {
-                        DarfPaymentBatch darfBatch = objectMapper.readValue(item.toJSONString(), DarfPaymentBatch.class);
+                    } else if (paymentType.equals("DARF")) {
+                        DarfPaymentBatch darfBatch = objectMapper.treeToValue(item, DarfPaymentBatch.class);
                         payments.add(darfBatch);
+                    } else {
+                        throw new IOException("Unknown tipoPagamento in payment batch: " + paymentType);
                     }
                 }
-                jsonLote.put("pagamentos", null);
+                jsonLote.putNull("pagamentos");
             }
-            BatchProcessing batchProcessing = objectMapper.readValue(jsonLote.toJSONString(), BatchProcessing.class);
+            BatchProcessing batchProcessing = objectMapper.treeToValue(jsonLote, BatchProcessing.class);
             batchProcessing.setPayments(payments);
             return batchProcessing;
-        } catch (IOException | ParseException e) {
+        } catch (IOException e) {
             log.error(GENERIC_EXCEPTION_MESSAGE, e);
             throw new SdkException(
                     e.getMessage(),
