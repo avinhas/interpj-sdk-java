@@ -272,13 +272,19 @@ public class BankingPaymentClient {
             List<BatchItem> payments = new ArrayList<>();
             if (jsonArray != null && jsonArray.isArray()) {
                 for (JsonNode item : jsonArray) {
-                    String paymentType = item.path("tipoPagamento").asText();
+                    JsonNode paymentTypeNode = item.get("tipoPagamento");
+                    if (paymentTypeNode == null || !paymentTypeNode.isTextual()) {
+                        throw new IOException("Invalid tipoPagamento in payment batch");
+                    }
+                    String paymentType = paymentTypeNode.asText();
                     if (paymentType.equals("BILLET")) {
                         BilletBatch billetBatch = objectMapper.treeToValue(item, BilletBatch.class);
                         payments.add(billetBatch);
-                    } else {
+                    } else if (paymentType.equals("DARF")) {
                         DarfPaymentBatch darfBatch = objectMapper.treeToValue(item, DarfPaymentBatch.class);
                         payments.add(darfBatch);
+                    } else {
+                        throw new IOException("Unknown tipoPagamento in payment batch: " + paymentType);
                     }
                 }
                 jsonLote.putNull("pagamentos");
